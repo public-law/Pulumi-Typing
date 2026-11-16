@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -16,41 +15,59 @@ from .transform import transform
 def run(package: str, output: Path) -> None:
     module = package.replace("-", "_")
     output = output.resolve()
+
     with tempfile.TemporaryDirectory(prefix="pulumi-typing-") as tmp:
         root = Path(tmp)
         installed = root / "installed"
         subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--target", str(installed), package],
+            [
+                sys.executable, "-m", "pip", "install",
+                "--disable-pip-version-check", "--target", str(installed),
+                package,
+            ],
             check=True,
         )
-        dist = next(
-            (p for p in installed.glob("*.dist-info")
-             if p.name.lower().startswith(package.replace("-", "_").lower() + "-")),
+
+        distributions = metadata.distributions(path=[str(installed)])
+        distribution = next(
+            (
+                dist for dist in distributions
+                if dist.metadata["Name"].lower().replace("_", "-") == package.lower().replace("_", "-")
+            ),
             None,
         )
-        if dist is None:
+        if distribution is None:
             raise RuntimeError(f"Could not find distribution metadata for {package}")
-        version = metadata.PathDistribution(dist).version
+
         module_path = installed / module
         if not module_path.is_dir():
             raise RuntimeError(f"Cannot locate module {module}")
-        subprocess.run(
-            ["pyright", "--createstub", module],
-            cwd=root,
-            env=os.environ | {"PYTHONPATH": str(installed)},
-            check=True,
+
+        # Point Pyright at the exact SDK version installed in the temporary directory.
+        (root / "pyrightconfig.json").write_text(
+            json.dumps({"extraPaths": [str(installed)], "include": []})
         )
+        subprocess.run(["pyright", "--createstub", module], cwd=root, check=True)
+
         stub_path = root / "typings" / module
         if not stub_path.is_dir():
             raise RuntimeError(f"Pyright did not generate stubs for {module}")
+
         destination = output / f"{module}-stubs" / module
         if destination.parent.exists():
             shutil.rmtree(destination.parent)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(stub_path, destination)
+
         changed = transform(destination, module_path)
-        manifest = {"package": package, "version": version, "transformations": changed}
-        (destination.parent / "upstream.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        manifest = {
+            "package": package,
+            "version": distribution.version,
+            "transformations": changed,
+        }
+        (destination.parent / "upstream.json").write_text(
+            json.dumps(manifest, indent=2) + "\n"
+        )
         print(json.dumps(manifest))
 
 
