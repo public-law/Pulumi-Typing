@@ -1,0 +1,12 @@
+{
+  "pulumi_cloudflare.ruleset.RulesetArgs.kind": {
+    "type": "string",
+    "allowed_values": [
+      "managed",
+      "custom",
+      "root",
+      "zone"
+    ],
+    "source": "generated SDK docstring"
+  }
+}
