@@ -34,7 +34,7 @@ class RulesetArgs:
     
     @_builtins.property
     @pulumi.getter
-    def kind(self) -> pulumi.Input[_builtins.str]:
+    def kind(self) -> pulumi.Input[Literal['managed', 'custom', 'root', 'zone']]:
         """
         The kind of the ruleset.
         Available values: "managed", "custom", "root", "zone".
@@ -42,7 +42,7 @@ class RulesetArgs:
         ...
     
     @kind.setter
-    def kind(self, value: pulumi.Input[_builtins.str]): # -> None:
+    def kind(self, value: pulumi.Input[Literal['managed', 'custom', 'root', 'zone']]): # -> None:
         ...
     
     @_builtins.property
