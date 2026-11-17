@@ -18,3 +18,16 @@ class RulesetArgs:
                Available values: "ddos*l4", "ddos*l7".
         """
         ...
+
+    @_builtins.property
+    @pulumi.getter
+    def kind(self) -> pulumi.Input[_builtins.str]:
+        """
+        The kind of the ruleset.
+        Available values: "managed", "custom", "root", "zone".
+        """
+        ...
+
+    @kind.setter
+    def kind(self, value: pulumi.Input[_builtins.str]): # -> None:
+        ...
