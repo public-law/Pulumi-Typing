@@ -49,11 +49,38 @@ def transform(stub_root: Path, source_root: Path) -> int:
     if annotation not in ("pulumi.Input[_builtins.str]", "pulumi.Input[str]"):
         return 0
     replacement = "pulumi.Input[Literal[" + ", ".join(repr(v) for v in values) + "]]"
+    # Update the constructor, getter return, and setter argument together.
+    annotations = [arg.annotation]
+    getter = next((node for node in target.body
+                   if isinstance(node, ast.FunctionDef) and node.name == "kind"), None)
+    if getter is not None:
+        if getter.returns is not None:
+            annotations.append(getter.returns)
+        setter = next((node for node in target.body
+                       if isinstance(node, ast.FunctionDef) and node.name == "kind"
+                       and any(isinstance(d, ast.Attribute) and d.attr == "setter"
+                               for d in node.decorator_list)), None)
+        if setter is not None:
+            value_arg = next((a for a in setter.args.args if a.arg == "value"), None)
+            if value_arg is not None and value_arg.annotation is not None:
+                annotations.append(value_arg.annotation)
+
     lines = content.splitlines(keepends=True)
-    start = sum(len(line) for line in lines[:arg.annotation.lineno - 1]) + arg.annotation.col_offset
-    end = sum(len(line) for line in lines[:arg.annotation.end_lineno - 1]) + arg.annotation.end_col_offset
-    content = content[:start] + replacement + content[end:]
-    content = content.replace("from typing import ", "from typing import Literal, ", 1)
+    edits = []
+    for node in annotations:
+        if ast.get_source_segment(content, node) not in (
+            "pulumi.Input[_builtins.str]", "pulumi.Input[str]"
+        ):
+            continue
+        start = sum(len(line) for line in lines[:node.lineno - 1]) + node.col_offset
+        end = sum(len(line) for line in lines[:node.end_lineno - 1]) + node.end_col_offset
+        edits.append((start, end))
+    for start, end in sorted(edits, reverse=True):
+        content = content[:start] + replacement + content[end:]
+    if not edits:
+        return 0
+    if "from typing import Literal" not in content:
+        content = content.replace("from typing import ", "from typing import Literal, ", 1)
     stub.write_text(content)
     report = {
         "pulumi_cloudflare.ruleset.RulesetArgs.kind": {
