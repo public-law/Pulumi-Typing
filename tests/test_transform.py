@@ -26,6 +26,8 @@ def test_real_world_ruleset_fixture(tmp_path):
     assert transform(stubs, sources) == 1
     transformed = target.read_text()
     assert "kind: pulumi.Input[Literal['managed', 'custom', 'root', 'zone']]" in transformed
+    assert "def kind(self) -> pulumi.Input[Literal['managed', 'custom', 'root', 'zone']]" in transformed
+    assert "def kind(self, value: pulumi.Input[Literal['managed', 'custom', 'root', 'zone']])" in transformed
     assert "name: pulumi.Input[_builtins.str]" in transformed
     assert "from typing import Literal, " in transformed
     assert '"allowed_values": [' in (tmp_path / "constraints.json").read_text()
